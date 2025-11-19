@@ -1,0 +1,12 @@
+# file to ignore
+__pycache__/
+.ipynb_checkpoints/
+.env
+.gradio/
+.DS_Store
+app.py
+group_file/
+previous_test/
+sample_submission.csv
+untitled.txt
+toxicity_final2.ipynb
