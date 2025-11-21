@@ -50,4 +50,4 @@ def predict_toxicity(texts):
 
     return probs, preds, pred_dicts
 
-print(predict_toxicity("You are an horrible person!"))
+print(predict_toxicity("I will kill you!"))
