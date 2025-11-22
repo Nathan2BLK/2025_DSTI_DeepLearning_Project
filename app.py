@@ -317,7 +317,7 @@ with gr.Blocks(title="Toxicity Analyzer") as demo:
     
     with gr.Row():
         with gr.Column(scale=2):
-            txt = gr.Textbox(label="Text to analyze", placeholder="Type or paste text here...", lines=6)
+            txt = gr.Textbox(label="Text to analyze (in english)", placeholder="Type or paste text here...", lines=6)
             with gr.Row():
                 btn = gr.Button("Analyze", variant="primary", scale=2)
                 btn_clear = gr.Button("Clear", scale=1)
