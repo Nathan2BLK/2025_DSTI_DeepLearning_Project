@@ -146,4 +146,3 @@ python app.py
 
 The application will be available on http://localhost:7860
 Gradio will also generate a public link gradio.live that you can use for 1 week
----
