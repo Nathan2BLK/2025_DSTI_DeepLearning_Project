@@ -76,7 +76,7 @@ Final threshold optimized on the validation set for maximum macro-F1.
 
 ### Results Summary (example)
 | Model | Macro-F1 |
-|:--|:--|:--|
+|:--|:--|
 | DistilBERT | 0.63 |
 | BERT-base | 0.67 | 
 
