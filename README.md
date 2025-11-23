@@ -8,7 +8,7 @@ This project implements a multi-label toxic comment classification system using 
 
 ## Project Structure
 
-- `app.py` / `app_v2.py`: Gradio apps for inference.
+- `app.py`: Gradio apps for inference.
 - `data/processed/`: Preprocessed datasets (cleaned data)
 - `test/`: Test predictions and thresholds.
 - `toxicity_final.ipynb`: Notebook for exploration and model training
