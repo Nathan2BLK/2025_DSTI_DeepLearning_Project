@@ -784,5 +784,5 @@ if __name__ == "__main__":
         server_name="0.0.0.0",
         server_port=7860,
         allowed_paths=[str(base_log_dir)],  # this points to /data on Spaces
-        share=False,  # or just remove this argument
+        share=True,  # or just remove this argument
     )
