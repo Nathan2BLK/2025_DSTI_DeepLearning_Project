@@ -36,7 +36,8 @@ We face class imbalance within the dataset and resolve it by choosing the right 
 
 - `app.py` : Gradio apps for inference
 - `data/processed/`: Preprocessed datasets (cleaned data)
-- `test/`: Test predictions and thresholds
+- `data`: Row datasets
+- `test/`: Test probabilities on predictions and thresholds associated to test
 - `test.py`: File to test the pretrained model on a sentence of your choice
 - `toxicity_final.ipynb`: Notebook for exploration and model training
 - `dockerfile`: Docker setup for containerized inference.
@@ -54,8 +55,8 @@ The model with the highest `macro-F1` is selected for optimization.
 - **Loss:** Binary Cross-Entropy with Logits (`BCEWithLogitsLoss`)  
 - **Optimizer:** AdamW (learning rate `2e-5`, weight decay `0.01`)  
 - **Scheduler:** Linear warmup  
-- **Training:** 2–3 epochs with early stopping  
-- **Batch size:** 16 (GPU) / 8 (CPU)  
+- **Training:** 4-10 epochs with early stopping  
+- **Batch size:** 16 / 32
 - **Preprocessing:** Lowercasing, tokenization, truncation (max 128 tokens)
 
 ### 3. Optimization  
@@ -77,6 +78,7 @@ Final threshold optimized on the validation set for maximum macro-F1.
 ### Results Summary (example)
 | Model | Macro-F1 |
 |:--|:--|
+| Baseline (TF-IDF + LogReg) | 0.54 |
 | DistilBERT | 0.63 |
 | BERT-base | 0.67 | 
 
@@ -88,17 +90,8 @@ Validation and Kaggle test-subset scores are reported automatically in the noteb
 
 ## 💬 Inference & Demo  
 
-A **Gradio** web interface provides real-time toxicity detection:  
+A **Gradio** web interface provides real-time toxicity detection, look at app.py
 
-```python
-gr.Interface(
-    fn=classify_comment,
-    inputs=["textbox", "slider"],
-    outputs=["label", "json"],
-    title="Jigsaw Toxic Comment Classifier",
-    description="DistilBERT/BERT multi-label classifier with sigmoid outputs."
-).launch()
-```
 Here is the link to access to the web interface: [link](https://huggingface.co/spaces/NathanDB/toxic-bert-dsti)
 You can click on one of the suggested comments or write a new one to see the detailed toxicity analysis.
 
