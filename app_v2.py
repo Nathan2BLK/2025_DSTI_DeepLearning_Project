@@ -768,11 +768,11 @@ with gr.Blocks(title="Toxicity Analyzer") as demo:
             placeholder="Admin key required",
         )
         admin_download = gr.File(
-            label="Download log history",
+            label="Infos",
             interactive=False,
         )
 
-        admin_btn = gr.Button("Get Logs")
+        admin_btn = gr.Button("Get Infos")
         admin_btn.click(
             admin_get_logs,         # top-level function
             inputs=admin_key_box,
