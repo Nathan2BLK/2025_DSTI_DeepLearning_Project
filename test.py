@@ -1,8 +1,11 @@
 # inference_model.py
 
 import torch
+import os
+import json
 import numpy as np
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from huggingface_hub import hf_hub_download
 
 LABEL_COLS = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
 MAX_LEN = 256  # or your actual max_length
@@ -19,10 +22,34 @@ model = AutoModelForSequenceClassification.from_pretrained(MODEL_ID)
 model.to(DEVICE)
 model.eval()
 
-# If you saved thresholds on HF too, e.g. label_thresholds.json
-# you can load them with huggingface_hub or hardcode them here:
-THRESHOLDS = np.array([0.90, 0.25, 0.90, 0.10, 0.40, 0.15], dtype=np.float32)
-# or just use 0.5 if you prefer
+def load_thresholds():
+    local_path = "test/label_thresholds_test_tuned.json"
+
+    # 1) Local file exists → use it
+    if os.path.exists(local_path):
+        with open(local_path, "r") as f:
+            thr_dict = json.load(f)
+        print("Loaded thresholds from LOCAL file.")
+        return np.array([thr_dict[label] for label in LABEL_COLS], dtype=np.float32)
+
+    # 2) Try to load from Hugging Face Hub
+    try:
+        hf_file = hf_hub_download(
+            repo_id=MODEL_ID,
+            filename="label_thresholds_test_tuned.json",
+            repo_type="model",
+        )
+        with open(hf_file, "r") as f:
+            thr_dict = json.load(f)
+        print("Loaded thresholds from Hugging Face Hub.")
+        return np.array([thr_dict[label] for label in LABEL_COLS], dtype=np.float32)
+
+    except Exception as e:
+        print("WARNING: No thresholds found on HF Hub or locally. Using default 0.5.")
+        print("Error detail:", e)
+        return np.full(len(LABEL_COLS), 0.5, dtype=np.float32)
+
+THRESHOLDS = load_thresholds()
 
 def predict_toxicity(texts):
     if isinstance(texts, str):

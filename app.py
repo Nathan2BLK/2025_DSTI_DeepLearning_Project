@@ -26,6 +26,7 @@ Notes:
 """
 
 import os
+import json
 import torch
 import numpy as np
 import pandas as pd
@@ -33,7 +34,7 @@ import gradio as gr
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 # Optional: inference API
-from huggingface_hub import InferenceApi, hf_api
+from huggingface_hub import InferenceApi, hf_api, hf_hub_download
 import tempfile
 from pathlib import Path
 
@@ -42,7 +43,34 @@ MODEL_ID = "NathanDB/toxic-bert-dsti"  # change if needed
 LABEL_COLS = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
 MAX_LEN = 256
 # thresholds used to convert probabilities -> binary labels
-THRESHOLDS = np.array([0.90, 0.25, 0.90, 0.10, 0.40, 0.15], dtype=np.float32)
+def load_thresholds():
+    local_path = "test/label_thresholds_test_tuned.json"
+
+    # 1) Local file exists → use it
+    if os.path.exists(local_path):
+        with open(local_path, "r") as f:
+            thr_dict = json.load(f)
+        print("Loaded thresholds from LOCAL file.")
+        return np.array([thr_dict[label] for label in LABEL_COLS], dtype=np.float32)
+
+    # 2) Try to load from Hugging Face Hub
+    try:
+        hf_file = hf_hub_download(
+            repo_id=MODEL_ID,
+            filename="label_thresholds_test_tuned.json",
+            repo_type="model",
+        )
+        with open(hf_file, "r") as f:
+            thr_dict = json.load(f)
+        print("Loaded thresholds from Hugging Face Hub.")
+        return np.array([thr_dict[label] for label in LABEL_COLS], dtype=np.float32)
+
+    except Exception as e:
+        print("WARNING: No thresholds found on HF Hub or locally. Using default 0.5.")
+        print("Error detail:", e)
+        return np.full(len(LABEL_COLS), 0.5, dtype=np.float32)
+
+THRESHOLDS = load_thresholds()
 
 # ---- Device ----
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -289,7 +317,7 @@ with gr.Blocks(title="Toxicity Analyzer") as demo:
     
     with gr.Row():
         with gr.Column(scale=2):
-            txt = gr.Textbox(label="Text to analyze", placeholder="Type or paste text here...", lines=6)
+            txt = gr.Textbox(label="Text to analyze (in english)", placeholder="Type or paste text here...", lines=6)
             with gr.Row():
                 btn = gr.Button("Analyze", variant="primary", scale=2)
                 btn_clear = gr.Button("Clear", scale=1)
