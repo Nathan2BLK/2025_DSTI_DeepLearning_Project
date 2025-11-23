@@ -35,7 +35,7 @@ from huggingface_hub import hf_hub_download
 # ---- Config ----
 MODEL_ID = "NathanDB/toxic-bert-dsti"  # change if needed
 LABEL_COLS = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
-MAX_LEN = 256
+MAX_LEN = 128  # max token length for the model
 
 # ---- Admin access (for downloading logs) ----
 # On HF Spaces, set ADMIN_KEY in "Settings -> Variables & secrets"
