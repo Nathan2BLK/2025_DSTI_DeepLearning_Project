@@ -9,8 +9,11 @@ Usage:
  1) Install requirements:
     pip install transformers torch gradio numpy pandas huggingface-hub
 
- 2) Run:
+ 2) Run locally:
     python app.py
+
+On Hugging Face Spaces:
+ - The app logs to /data/toxicity_history.csv (persistent, not in the repo).
 """
 
 import os
@@ -35,9 +38,10 @@ LABEL_COLS = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_
 MAX_LEN = 256
 
 # ---- Admin access (for downloading logs) ----
-ADMIN_KEY = os.environ.get("ADMIN_KEY", None)  # set this in HF Space secrets
+# On HF Spaces, set ADMIN_KEY in "Settings -> Variables & secrets"
+ADMIN_KEY = os.environ.get("ADMIN_KEY", None)
 
-# Human-readable info per category (for the report)
+# ---- Human-readable info per category (for the report) ----
 LABEL_INFO = {
     "toxic": {
         "name": "Toxic",
@@ -71,7 +75,7 @@ LABEL_INFO = {
     },
 }
 
-# Simple lexical dictionary to highlight risky words in the text
+# ---- Simple lexical dictionary to highlight risky words in the text ----
 TOXIC_KEYWORDS = {
     "idiot": "insult",
     "stupid": "insult",
@@ -101,7 +105,7 @@ TOXIC_KEYWORDS = {
     "kike": "identity_hate",
 }
 
-# thresholds used to convert probabilities -> binary labels
+# ---- Thresholds used to convert probabilities -> binary labels ----
 def load_thresholds():
     local_path = "test/label_thresholds_test_tuned.json"
 
@@ -143,11 +147,12 @@ if ON_SPACE:
     # Running on Hugging Face Spaces -> use persistent /data
     base_log_dir = Path("/data")
 else:
-    # Local dev -> project-local data/ folder
+    # Local dev -> project-local data/ folder (add to .gitignore)
     base_log_dir = BASE_DIR / "data"
 
 base_log_dir.mkdir(parents=True, exist_ok=True)
 LOG_FILE = base_log_dir / "toxicity_history.csv"
+
 
 def log_interaction(text: str, result_dict: dict):
     """
@@ -157,6 +162,7 @@ def log_interaction(text: str, result_dict: dict):
       - text
       - predicted_labels (comma-separated)
       - probabilities_by_label_json
+    This is "automatic and private": on HF it goes to /data (not in the repo).
     """
     if not isinstance(text, str) or text.strip() == "":
         return
@@ -175,12 +181,16 @@ def log_interaction(text: str, result_dict: dict):
     file_exists = LOG_FILE.exists()
     print("Writing to:", LOG_FILE)
 
-
     with LOG_FILE.open("a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         if not file_exists:
             writer.writerow(
-                ["timestamp_utc", "text", "predicted_labels", "probabilities_by_label_json"]
+                [
+                    "timestamp_utc",
+                    "text",
+                    "predicted_labels",
+                    "probabilities_by_label_json",
+                ]
             )
         writer.writerow(
             [
@@ -190,6 +200,29 @@ def log_interaction(text: str, result_dict: dict):
                 json.dumps(probs_by_label, ensure_ascii=False),
             ]
         )
+
+# ---- Admin log retrieval (used by Gradio callback) ----
+def admin_get_logs(key: str):
+    """
+    Gradio callback to let the admin download the log file.
+    - Returns the path to LOG_FILE if key matches ADMIN_KEY.
+    - Returns None otherwise (file output will stay empty).
+    """
+    # If no admin key configured, disable download
+    if not ADMIN_KEY:
+        print("ADMIN_KEY not set, refusing admin download.")
+        return None
+
+    if key != ADMIN_KEY:
+        print("Wrong admin key, refusing admin download.")
+        return None
+
+    if not LOG_FILE.exists():
+        print("Log file does not exist yet.")
+        return None
+
+    # Return as string path for gr.File
+    return str(LOG_FILE)
 
 # ---- Device & model load (always from HF Hub) ----
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -203,7 +236,6 @@ print("Model loaded successfully.")
 
 
 # ---- Prediction helpers ----
-
 def predict_toxicity(text: str):
     """Run the model (loaded from HF Hub) and return df + result_dict."""
 
@@ -239,7 +271,9 @@ def predict_toxicity(text: str):
         pred = int(preds[i])
         rows.append({"label": lbl, "probability": round(prob, 6), "predicted": pred})
 
-    df = pd.DataFrame(rows).sort_values("probability", ascending=False).reset_index(drop=True)
+    df = pd.DataFrame(rows).sort_values("probability", ascending=False).reset_index(
+        drop=True
+    )
     return df, result_dict
 
 
@@ -432,9 +466,7 @@ def build_result_html(df: pd.DataFrame, result_dict: dict, text: str):
         severity_text = "High risk"
 
     toxic_categories = [
-        lbl.replace("_", " ").title()
-        for lbl, v in result_dict.items()
-        if v["predicted"]
+        lbl.replace("_", " ").title() for lbl, v in result_dict.items() if v["predicted"]
     ]
 
     highlighted_html, n_hits, hits_list = highlight_risky_words(text, result_dict)
@@ -477,10 +509,7 @@ def build_result_html(df: pd.DataFrame, result_dict: dict, text: str):
         "<div class='pill'><strong>Max category</strong>"
         f"{max_label.replace('_',' ').title()} ({max_prob*100:.1f}%)</div>"
     )
-    html += (
-        "<div class='pill'><strong>Average toxicity</strong>"
-        f"{avg_prob*100:.1f}%</div>"
-    )
+    html += "<div class='pill'><strong>Average toxicity</strong>" f"{avg_prob*100:.1f}%</div>"
     html += (
         "<div class='pill'><strong>Model confidence</strong>"
         f"{confidence_label} (margin-based)</div>"
@@ -531,11 +560,11 @@ def build_result_html(df: pd.DataFrame, result_dict: dict, text: str):
             "<li>Model confidence is <strong>low</strong> in the sense that many labels lie close to their thresholds, so predictions should be interpreted with extra care.</li>"
         )
     elif confidence_label == "Medium":
-        html +=(
+        html += (
             "<li>Model confidence is <strong>moderate</strong>: some labels are clearly above/below their thresholds, while others remain near the decision boundary.</li>"
         )
     else:
-        html +=(
+        html += (
             "<li>Model confidence is <strong>high</strong>: most labels are clearly separated from their thresholds (either strongly toxic or clearly safe).</li>"
         )
 
@@ -595,7 +624,7 @@ def build_result_html(df: pd.DataFrame, result_dict: dict, text: str):
         html += f"<div class='bar' style='width:{prob_percent:.2f}%;'></div>"
         html += f"<div class='threshold-line' style='left:{threshold_percent:.2f}%;'></div>"
         html += "</div>"
-        html +=(
+        html += (
             f"<div class='bar-labels'><span>0%</span>"
             f"<span style='text-align:center; flex:1;'>Threshold: {threshold_percent:.1f}%</span>"
             "<span>100%</span></div>"
@@ -637,8 +666,10 @@ def build_result_html(df: pd.DataFrame, result_dict: dict, text: str):
     html += "</div>"
 
     html += "<div class='footer'>"
-    html += f"<span>Model: <strong>{MODEL_ID}</strong> · Mode: Local weights from Hugging Face Hub</span>"
-    html +=(
+    html += (
+        f"<span>Model: <strong>{MODEL_ID}</strong> · Mode: Local weights from Hugging Face Hub</span>"
+    )
+    html += (
         "<span>Thresholds: loaded from tuned file when available, otherwise default 0.5. "
         "This report is probabilistic and should be used as a decision support tool.</span>"
     )
@@ -648,7 +679,7 @@ def build_result_html(df: pd.DataFrame, result_dict: dict, text: str):
     return html
 
 
-# Gradio UI
+# ---- Gradio UI ----
 with gr.Blocks(title="Toxicity Analyzer") as demo:
     gr.HTML(
         "<h2 style='margin:8px 0;color:#e6eef8;font-family:Inter,Arial;text-align:center;'>🛡️ Toxicity Analyzer</h2>"
@@ -674,6 +705,7 @@ with gr.Blocks(title="Toxicity Analyzer") as demo:
         df, result_dict = predict_toxicity(text)
         html = build_result_html(df, result_dict, text)
 
+        # automatic, private logging of input + model output
         if result_dict:
             log_interaction(text, result_dict)
 
@@ -711,26 +743,13 @@ with gr.Blocks(title="Toxicity Analyzer") as demo:
             type="password",
             placeholder="Admin key required",
         )
-        admin_download = gr.File(
-            label="Download log history",
-            interactive=False
-        )
-
-        def admin_get_logs(key):
-            # Only allow download if key matches the environment variable
-            if ADMIN_KEY is None:
-                return None
-            if key != ADMIN_KEY:
-                return None
-            if LOG_FILE.exists():
-                return str(LOG_FILE)
-            return None
+        admin_download = gr.File(label="Download log history", interactive=False)
 
         admin_btn = gr.Button("Get Logs")
         admin_btn.click(
-            admin_get_logs,
+            admin_get_logs,  # top-level function
             inputs=admin_key_box,
-            outputs=admin_download
+            outputs=admin_download,
         )
 
 if __name__ == "__main__":
