@@ -3,27 +3,23 @@
 
 ## 📘 Project Overview  
 
-This project implements a multi-label toxic comment classification system using a fine-tuned BERT model and the the [Jigsaw Toxic Comment Classification Challenge](https://www.kaggle.com/competitions/jigsaw-toxic-comment-classification-challenge/overview) dataset. The application uses Gradio to provide an interactive web interface where users can input text and get both probability scores for each toxic category (`toxic`, `severe_toxic`, `obscene`, `threat`, `insult`, `identity_hate`) and the predicted toxic labels.
+This project implements a multi-label toxic comment classification system using a fine-tuned BERT model and the [Jigsaw Toxic Comment Classification Challenge](https://www.kaggle.com/competitions/jigsaw-toxic-comment-classification-challenge/overview) dataset. The application uses Gradio to provide an interactive web interface where users can input text and get both probability scores for each toxic category (`toxic`, `severe_toxic`, `obscene`, `threat`, `insult`, `identity_hate`) and the predicted toxic labels.
 
 The notebook implements a complete pipeline:
 - Data preprocessing & exploratory analysis  
 - Transformer fine-tuning (DistilBERT vs BERT benchmark)  
 - Hyperparameter optimization and early stopping  
 - Evaluation (macro/weighted F1, ROC-AUC)  
-- Inference & Gradio demo  
-- Kaggle submission generation  
-- Ethical considerations and reproducibility  
-
 ---
 
 ## 🧩 Dataset  
 
-**Source:** Kaggle – *Jigsaw Toxic Comment Classification Challenge*  
+**Source:** Kaggle –  [Jigsaw Toxic Comment Classification Challenge](https://www.kaggle.com/competitions/jigsaw-toxic-comment-classification-challenge/overview) 
+
 **Files used:**
 - `train.csv` – training comments with labels  
 - `test.csv` – test comments (no labels)  
-- `test_labels.csv` – hidden test labels (subset released for evaluation)  
-- `sample_submission.csv` – Kaggle submission format  
+- `test_labels.csv` – hidden test labels (subset released for evaluation)
 
 | Label | Description |
 |:--|:--|
@@ -34,14 +30,14 @@ The notebook implements a complete pipeline:
 | `insult` | Personal attacks |
 | `identity_hate` | Hate speech targeting identity groups |
 
-Class imbalance is handled using **inverse-frequency label weighting** in the loss function.
-
+We face class imbalance within the dataset and resolve it by choosing the right model.
 
 ## Project Structure
 
-- `app.py` : Gradio apps for inference.
+- `app.py` : Gradio apps for inference
 - `data/processed/`: Preprocessed datasets (cleaned data)
-- `test/`: Test predictions and thresholds.
+- `test/`: Test predictions and thresholds
+- `test.py`: File to test the pretrained model on a sentence of your choice
 - `toxicity_final.ipynb`: Notebook for exploration and model training
 - `dockerfile`: Docker setup for containerized inference.
 - `requirements.txt`: Python dependencies.
@@ -51,7 +47,7 @@ Class imbalance is handled using **inverse-frequency label weighting** in the lo
 ## ⚙️ Methodology  
 
 ### 1. Model Selection  
-A benchmark phase compares **DistilBERT** and **BERT-base-uncased** on a subset of the dataset to balance accuracy and computational efficiency.  
+A benchmark phase compares a baseline mode **TF-IDF + Logistic Regression** to  two adavanced transformer models **DistilBERT** and **BERT-base-uncased** on a subset of the dataset to balance accuracy and computational efficiency.  
 The model with the highest `macro-F1` is selected for optimization.
 
 ### 2. Fine-Tuning  
@@ -60,7 +56,7 @@ The model with the highest `macro-F1` is selected for optimization.
 - **Scheduler:** Linear warmup  
 - **Training:** 2–3 epochs with early stopping  
 - **Batch size:** 16 (GPU) / 8 (CPU)  
-- **Preprocessing:** Lowercasing, tokenization, truncation (max 192 tokens)
+- **Preprocessing:** Lowercasing, tokenization, truncation (max 128 tokens)
 
 ### 3. Optimization  
 Hyperparameters tuned: learning rate, batch size, number of epochs, decision threshold.  
@@ -79,10 +75,10 @@ Final threshold optimized on the validation set for maximum macro-F1.
 | **Per-label F1** | Detailed performance by toxicity type |
 
 ### Results Summary (example)
-| Model | Macro-F1 | Weighted-F1 | ROC-AUC (macro) |
-|:--|:--:|:--:|:--:|
-| DistilBERT | 0.86 | 0.91 | 0.94 |
-| BERT-base | 0.87 | 0.92 | 0.95 |
+| Model | Macro-F1 |
+|:--|:--:|:--:|
+| DistilBERT | 0.63 |
+| BERT-base | 0.67 | 
 
 *(Values may vary slightly depending on seed and subset size.)*
 
@@ -103,8 +99,8 @@ gr.Interface(
     description="DistilBERT/BERT multi-label classifier with sigmoid outputs."
 ).launch()
 ```
-
-You can paste any comment and see per-label probabilities with adjustable threshold.
+Here is the link to access to the web interface: [link](https://huggingface.co/spaces/NathanDB/toxic-bert-dsti)
+You can click on one of the suggested comments or write a new one to see the detailed toxicity analysis.
 
 ---
 
@@ -117,14 +113,13 @@ You can paste any comment and see per-label probabilities with adjustable thresh
 ## Requirements
 
 Minimal Python dependencies:
-
-torch==2.9.1
-transformers==4.57.1
-numpy==2.2.6
-pandas==2.3.3
-datasets==4.4.1
-gradio
-gradio_client 
+-torch==2.9.1
+-transformers==4.57.1
+-numpy==2.2.6
+-pandas==2.3.3
+-datasets==4.4.1
+-gradio
+-gradio_client 
 
 ## Running with Docker
 
@@ -149,5 +144,5 @@ pip install -r requirements.txt
 python app.py
 ```
 The application will be available on http://localhost:7860
-
+Gradio will also generate a public link gradio.live that you can use for 1 week
 ---
