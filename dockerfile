@@ -19,4 +19,4 @@ COPY . /app
 
 EXPOSE 7860
 
-CMD ["python", "app_v2.py"]
+CMD ["python", "app.py"]

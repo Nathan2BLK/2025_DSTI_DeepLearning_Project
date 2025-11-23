@@ -120,7 +120,9 @@
 # xxhash==3.6.0
 # yarl==1.22.0
 
-torch==2.9.1
+
+torch==2.9.1+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
 transformers==4.57.1
 numpy==2.2.6
 pandas==2.3.3
