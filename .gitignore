@@ -13,5 +13,4 @@ toxicity_final2.ipynb
 
 # Ignore HF training checkpoints
 models/
-
 data/toxicity_history.csv
