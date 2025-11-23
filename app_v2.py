@@ -24,6 +24,7 @@ from html import escape
 import tempfile
 from pathlib import Path
 from datetime import datetime
+import shutil
 
 import torch
 import numpy as np
@@ -38,8 +39,35 @@ LABEL_COLS = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_
 MAX_LEN = 128  # max token length for the model
 
 # ---- Admin access (for downloading logs) ----
-# On HF Spaces, set ADMIN_KEY in "Settings -> Variables & secrets"
+# On HF Spaces, set ADMIN_KEY in Settings -> Variables & secrets
 ADMIN_KEY = os.environ.get("ADMIN_KEY", None)
+
+def admin_get_logs(key: str):
+    """
+    Gradio callback to let the admin download the log file.
+    - Returns the path to a TEMP COPY of LOG_FILE (in /tmp) if key matches ADMIN_KEY.
+    - Returns None otherwise (file output will stay empty).
+    """
+    # If no admin key configured, disable download
+    if not ADMIN_KEY:
+        print("ADMIN_KEY not set, refusing admin download.")
+        return None
+
+    if key != ADMIN_KEY:
+        print("Wrong admin key, refusing admin download.")
+        return None
+
+    if not LOG_FILE.exists():
+        print("Log file does not exist yet.")
+        return None
+
+    # Copy to a temp location Gradio is happy with (/tmp)
+    tmpdir = Path(tempfile.gettempdir())
+    tmp_path = tmpdir / f"toxicity_history_{datetime.utcnow().strftime('%Y%m%dT%H%M%S')}.csv"
+    shutil.copy2(LOG_FILE, tmp_path)
+    print("Admin download authorized, serving temp copy:", tmp_path)
+
+    return str(tmp_path)
 
 # ---- Human-readable info per category (for the report) ----
 LABEL_INFO = {
@@ -137,32 +165,28 @@ def load_thresholds():
 THRESHOLDS = load_thresholds()
 
 # ---- Logging config ----
-# HF Spaces: detect by env var, always log to /data (persistent volume)
-# Local: log to <project_dir>/data next to app.py
+# HF Spaces: log to /data (persistent, not in repo)
+# Local: log to <project_dir>/data (add it to .gitignore)
 
 BASE_DIR = Path(__file__).resolve().parent
 ON_SPACE = bool(os.environ.get("SPACE_ID") or os.environ.get("HF_SPACE_ID"))
 
 if ON_SPACE:
-    # Running on Hugging Face Spaces -> use persistent /data
     base_log_dir = Path("/data")
 else:
-    # Local dev -> project-local data/ folder (add to .gitignore)
     base_log_dir = BASE_DIR / "data"
 
 base_log_dir.mkdir(parents=True, exist_ok=True)
 LOG_FILE = base_log_dir / "toxicity_history.csv"
 
-
 def log_interaction(text: str, result_dict: dict):
     """
-    Append an interaction to a CSV log file.
-    We do NOT log usernames, only:
+    Automatic, private logging of:
       - timestamp_utc
-      - text
+      - raw text
       - predicted_labels (comma-separated)
       - probabilities_by_label_json
-    This is "automatic and private": on HF it goes to /data (not in the repo).
+    On HF Spaces this goes to /data/toxicity_history.csv (not visible in repo).
     """
     if not isinstance(text, str) or text.strip() == "":
         return
@@ -705,7 +729,7 @@ with gr.Blocks(title="Toxicity Analyzer") as demo:
         df, result_dict = predict_toxicity(text)
         html = build_result_html(df, result_dict, text)
 
-        # automatic, private logging of input + model output
+        # log every call (private, server-side only)
         if result_dict:
             log_interaction(text, result_dict)
 
@@ -736,21 +760,29 @@ with gr.Blocks(title="Toxicity Analyzer") as demo:
         inputs=txt,
     )
 
-    # ---- Admin-only log download section ----
+        # ---- Admin-only log download section ----
     with gr.Accordion("Admin Tools (restricted)", open=False):
         admin_key_box = gr.Textbox(
             label="Enter admin key",
             type="password",
             placeholder="Admin key required",
         )
-        admin_download = gr.File(label="Download log history", interactive=False)
+        admin_download = gr.File(
+            label="Download log history",
+            interactive=False,
+        )
 
         admin_btn = gr.Button("Get Logs")
         admin_btn.click(
-            admin_get_logs,  # top-level function
+            admin_get_logs,         # top-level function
             inputs=admin_key_box,
             outputs=admin_download,
         )
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        allowed_paths=[str(base_log_dir)],  # this points to /data on Spaces
+        share=False,  # or just remove this argument
+    )
